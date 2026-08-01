@@ -1,0 +1,303 @@
+/**
+ * OpelGNES の描画コンテキストを保持できるアダプター (EGLベース)
+ * 描画に使うオブジェクトは egl を使ってコンテキスト処理する前提になります
+ */
+class GLESAdaptor {
+
+    /**
+     * コンストラクタ
+     * @param window 対象ウインドウ
+     */
+    function GLESAdaptor(window);
+
+    /**
+     * スクリーンサイズの設定
+     * @param width
+     * @param height
+     */
+    function setScreenSize(width, height);
+
+    property screenWidth;  //< スクリーン横幅
+    property screenHeihgt; //< スクリーン縦幅
+
+
+    /**
+     * OpenGL コンテキスト設定
+     */
+    function makeCurrent(); 
+
+    /**
+     * OpenGL描画処理実行
+     * @param layer 結果格納先レイヤ
+     * @param callback 処理関数  function(width, height, param)  このオブジェクトのコンテキストで実行されます
+     * @param param 追加パラメータ
+     * @param color 塗りつぶし色
+     */
+    function capture(layer, callback, param, color)
+
+    /**
+     * レイヤのコピー
+     * @param layer レイヤ または GLESTexture
+     * @param left 左位置
+     * @param top 上位置
+     */
+    function copyLayer(layer, left, top);
+
+    /**
+     * レイヤの描画
+     * @param layer レイヤ または GLESTexture
+     * @param a, b, c, d アフィン変換行列 (2x2)
+     * @param tx, ty 平行移動
+     * @param opacity 不透明度 0～255 (省略時 255)
+     */
+    function drawLayer(layer, a, b, c, d, tx, ty, opacity);
+
+    property blendMode; //< ブレンドモード (tTVPBlendMode 相当: 0=Disable,1=Opaque,2=Alpha,3=Add,...)
+
+
+    //=====================================================================
+    // ポストエフェクト (描画後処理)
+    //
+    //   beginEffect() ～ endEffect() で囲んだ描画を中間バッファに捕捉し、
+    //   画像加工コマンド列を GPU 上で適用してから直前の描画先へ合成する。
+    //   capture() のコールバック内で、モジュール(Live2D / M2Motion / drawLayer 等)
+    //   の描画ごとに個別のエフェクトを掛けられる。ネスト可。
+    //=====================================================================
+
+    /**
+     * エフェクト捕捉の開始
+     *   以降の描画は中間フレームバッファ(透明クリア済み)へ行われる。
+     *   対応する endEffect() を必ず呼ぶこと。
+     */
+    function beginEffect();
+
+    /**
+     * エフェクト適用と合成
+     *   直前の beginEffect() 以降に描画された内容へ commands を順に適用し、
+     *   現在の blendMode で直前の描画先へ合成する。
+     *
+     * @param commands 加工コマンドの配列。各要素は辞書で cmd メンバに種別、
+     *                 残りのメンバにパラメータを持つ。下記「コマンド一覧」参照。
+     * @param opacity  合成時の不透明度(0～255、省略時 255)。α に乗算される。
+     *                 Emote / Live2D のように自前描画で opacity を解釈しない
+     *                 モジュールのレイヤ不透明度を反映するのに使う。
+     *                 加工不要なら commands に空配列を渡せば
+     *                 「捕捉して opacity 付きで合成するだけ」になる。
+     *
+     * 例) [ %[ cmd:"grayscale" ], %[ cmd:"gamma", value:1.2 ] ]
+     */
+    function endEffect(commands, opacity=255);
+
+    //---------------------------------------------------------------------
+    // コマンド一覧 (endEffect の commands 配列に並べる)
+    //
+    //   ● 点処理 (連続すると 1 パスに融合される)
+    //     %[ cmd:"grayscale" ]
+    //         グレースケール化  Y=(19*B+183*G+54*R)>>8
+    //
+    //     %[ cmd:"gamma", value:r ]                     // 全チャンネル一括
+    //     %[ cmd:"gamma", rgamma:.., rfloor:.., rceil:..,
+    //                     ggamma:.., gfloor:.., gceil:..,
+    //                     bgamma:.., bfloor:.., bceil:.. ] // チャンネル別
+    //         ガンマ補正  out = pow(in/255, 1/gamma)*(ceil-floor)+floor
+    //         (本体 Layer.adjustGamma と同じ。floor 既定 0 / ceil 既定 255)
+    //
+    //     %[ cmd:"light", brightness:b, contrast:c ]
+    //         明度 b(-255～255) / コントラスト c(-100～100)
+    //
+    //     %[ cmd:"lut", table:[ ...256要素... ] ]
+    //         全チャンネル共通の 256 段ルックアップテーブル
+    //
+    //     %[ cmd:"colorize", hue:h, sat:s, blend:b ]
+    //         色相 h(0～255) / 彩度 s(0～255) / 合成率 b(0～1)
+    //
+    //     %[ cmd:"modulate", hue:h, saturation:s, luminance:l ]
+    //         色相 h(-180～180) / 彩度 s(-100～100) / 輝度 l(-100～100)
+    //
+    //     %[ cmd:"noise", level:n ]
+    //         ノイズ付加 n(0～255)
+    //
+    //     %[ cmd:"generateWhiteNoise" ]
+    //         グレースケールのホワイトノイズ生成 (α は保持)
+    //
+    //     %[ cmd:"overcolor", color:0xAARRGGBB, type:mode, opacity:o ]
+    //         指定色での全体塗りつぶし合成 (吉里吉里 fillOperateRect 準拠)。
+    //         color の上位8bit(AA) と opacity(0～255,既定255) が合成αになる。
+    //         type は吉里吉里の合成モード値 (tTVPBlendOperationMode):
+    //           1=Opaque 2=Alpha(既定) 3=Additive 4=Subtractive 5=Multiplicative
+    //           8=Dodge 9=Darken 10=Lighten 11=Screen 12=AddAlpha
+    //           13=PsNormal 14=PsAdditive 15=PsSubtractive 16=PsMultiplicative
+    //           17=PsScreen 18=PsOverlay 19=PsHardLight 20=PsSoftLight
+    //           21=PsColorDodge 22=PsColorDodge5 23=PsColorBurn
+    //           24=PsLighten 25=PsDarken 26=PsDifference 27=PsDifference5
+    //           28=PsExclusion
+    //
+    //   ● 近傍処理 (中間バッファを介して H/V 2 パス)
+    //     %[ cmd:"boxBlur", area:r, iter:n ]
+    //         半径 r の一様ぼかしを n 回 (iter 既定 1)
+    //
+    //     %[ cmd:"gaussianBlur", radius:r ]
+    //         半径 r のガウスぼかし
+    //
+    //   ※ noise / blur の最外周 / colorize は CPU 版と完全一致ではなく視覚的同等。
+    //---------------------------------------------------------------------
+
+    //=====================================================================
+    // クリッピング (AffineLayer の clip / clipImage 相当)
+    //
+    //   矩形クリップ   : setClipRect / clearClipRect。scissor で実現。
+    //   画像クリップ   : 二方式
+    //     mask 方式    : beginMaskClip() ～ endMaskClip() で囲んだ描画を
+    //                    中間バッファに捕捉し、マスク画像の α を乗算しながら
+    //                    直前の描画先へ合成する。マスク矩形の外側は α=0。
+    //                    (CPU 版 Layer.clipAlphaRect の第8引数 0 相当)
+    //                    描画モジュール (Emote / Live2D 等) にも安全に使える。
+    //     stencil 方式 : beginStencilClip() ～ endStencilClip()。
+    //                    マスク α をステンシルに書き込み描画を切り抜く。
+    //                    α は閾値で2値化される。描画モジュールが自前で
+    //                    ステンシルを使う場合 (Emote 等) は競合するため
+    //                    drawLayer による単純テクスチャ描画専用。
+    //=====================================================================
+
+    /**
+     * 矩形クリップの設定
+     *   以降の drawLayer / endEffect / endMaskClip の合成が矩形内に制限される。
+     *   描画モジュールが scissor 状態を尊重する場合は直接描画にも効くが、
+     *   確実にクリップしたい場合は beginMaskClip/endMaskClip で囲むこと。
+     * @param left, top, width, height クリップ矩形 (レイヤ座標、左上原点)
+     */
+    function setClipRect(left, top, width, height);
+
+    /**
+     * 矩形クリップの解除
+     */
+    function clearClipRect();
+
+    /**
+     * マスククリップ捕捉の開始
+     *   以降の描画は中間フレームバッファ(透明クリア済み)へ行われる。
+     *   対応する endMaskClip() を必ず呼ぶこと。beginEffect() とネスト可。
+     */
+    function beginMaskClip();
+
+    /**
+     * マスク適用合成
+     *   直前の beginMaskClip() 以降に描画された内容へマスク画像の α を
+     *   乗算し、現在の blendMode で直前の描画先へ合成する。
+     *   マスク矩形の外側は α=0 (完全クリップ)。
+     * @param mask マスク画像 (GLESTexture または Layer)。void なら素通し合成
+     *             (矩形クリップだけを合成時に確実に適用したい場合に使う)
+     * @param x, y マスク配置位置 (レイヤ座標)
+     */
+    function endMaskClip(mask, x, y);
+
+    /**
+     * ステンシルクリップの開始
+     *   マスク画像の α が閾値以上の領域をステンシルへ書き込み、
+     *   以降の drawLayer をその領域内に切り抜く。
+     * @param mask マスク画像 (GLESTexture または Layer)
+     * @param x, y マスク配置位置 (レイヤ座標)
+     * @param threshold クリップを有効とする α 閾値 (1～255、省略不可)
+     */
+    function beginStencilClip(mask, x, y, threshold);
+
+    /**
+     * ステンシルクリップの終了
+     */
+    function endStencilClip();
+
+    //---------------------------------------------------------------------
+    // 使用例
+    //
+    //   // 矩形クリップ (単純テクスチャ描画)
+    //   setClipRect(100, 100, 200, 150);
+    //   drawLayer(src, 1, 0, 0, 1, 0, 0);
+    //   clearClipRect();
+    //
+    //   // 画像クリップ mask 方式 (モジュール描画にも安全)
+    //   beginMaskClip();
+    //       drawLayer(src, 1, 0, 0, 1, 0, 0);   // または player.render() 等
+    //   endMaskClip(maskTexture, 100, 100);
+    //
+    //   // 画像クリップ stencil 方式 (drawLayer 専用)
+    //   beginStencilClip(maskTexture, 100, 100, 1);
+    //       drawLayer(src, 1, 0, 0, 1, 0, 0);
+    //   endStencilClip();
+    //---------------------------------------------------------------------
+}
+
+/**
+ * 事前生成テクスチャオブジェクト
+ * レイヤの内容から生成
+ */
+class GLESTexture {
+
+    GLESTexture();
+
+    /**
+    * @param layer れいや
+    */
+    function load(layer);
+};
+
+
+/*=========================================================================
+ * 簡易サンプル
+ *=======================================================================*/
+/*
+
+// --- 準備 ---------------------------------------------------------------
+var adaptor = new GLESAdaptor(window);
+adaptor.setScreenSize(800, 600);
+var dest = new Layer(window, null);   // 結果格納先レイヤ
+
+
+// --- 1) 素材を加工せずそのまま描画 -------------------------------------
+adaptor.capture(dest, function(w, h, p) {
+    drawLayer(src, 1, 0, 0, 1, 0, 0);   // src レイヤをそのまま描画
+}, void, 0x00000000 /* 透明クリア */);
+
+
+// --- 2) モジュールごとに別々のエフェクトを掛ける -----------------------
+adaptor.capture(dest, function(w, h, p) {
+
+    // 背景はそのまま
+    drawLayer(bgLayer, 1, 0, 0, 1, 0, 0);
+
+    // キャラ A はグレースケール + ガンマ (点処理2つは1パスに融合される)
+    beginEffect();
+        drawLayer(charA, 1, 0, 0, 1, 100, 50);
+    endEffect([
+        %[ cmd:"grayscale" ],
+        %[ cmd:"gamma", value:1.3 ],
+    ]);
+
+    // キャラ B はガウスぼかし + セピア寄せ
+    beginEffect();
+        drawLayer(charB, 1, 0, 0, 1, 400, 50);
+    endEffect([
+        %[ cmd:"gaussianBlur", radius:3 ],
+        %[ cmd:"modulate", hue:30, saturation:-40, luminance:0 ],
+    ]);
+
+    // キャラ C を青っぽく着色 (乗算で半透明の青を全面に重ねる = overcolor)
+    beginEffect();
+        drawLayer(charC, 1, 0, 0, 1, 600, 50);
+    endEffect([
+        // 0x80_4080FF: α=0x80(50%) の青を Multiplicative(5) で合成
+        %[ cmd:"overcolor", color:0x804080FF, type:5 ],
+    ]);
+
+}, void, 0x00000000);
+
+// 元の Layer.overcolor 相当 (素材を捕捉して全面を1モードで塗る) を単体で使う例:
+//   adaptor.capture(dest, function(w,h,p) {
+//       beginEffect();
+//           drawLayer(src, 1,0,0,1, 0,0);   // 加工対象を捕捉
+//       endEffect([ %[ cmd:"overcolor", color:0xFFFF0000, type:2 ] ]); // 赤をアルファ合成
+//   }, void, 0x00000000);
+
+// この時点で dest レイヤに合成結果が入っているので、
+// 吉里吉里側で通常のレイヤ合成に使える。
+
+*/
