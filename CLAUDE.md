@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A kirikiri Z (吉里吉里Z) engine plugin (`gles.dll`) that exposes OpenGL ES rendering to TJS2 scripts. GL ES is reached through **ANGLE/EGL** — the plugin loads `libEGL`/`libGLESv2` (ANGLE) at runtime, so on Windows the actual backend is Direct3D (D3D11 by default, D3D9 when `forceD3D9` is passed). The plugin's job is to render layer bitmaps into an offscreen FBO via GL ES and copy the result back into kirikiri `Layer` image buffers.
+A kirikiri Z (吉里吉里Z) engine plugin (`krkrgles.dll`) that exposes OpenGL ES rendering to TJS2 scripts. GL ES is reached through **ANGLE/EGL** — the plugin loads `libEGL`/`libGLESv2` (ANGLE) at runtime, so on Windows the actual backend is Direct3D (D3D11 by default, D3D9 when `forceD3D9` is passed). The plugin's job is to render layer bitmaps into an offscreen FBO via GL ES and copy the result back into kirikiri `Layer` image buffers.
 
 ## Build
 

@@ -1,6 +1,6 @@
-# gles — OpenGL ES 描画アダプタープラグイン (吉里吉里Z)
+# krkrgles — OpenGL ES 描画アダプタープラグイン (吉里吉里Z)
 
-吉里吉里Z (krkrz) 用のプラグイン (`gles.dll`)。OpenGL ES (ANGLE/EGL 経由) で描画した結果を吉里吉里のレイヤへ吸い上げ、吉里吉里側でさらに別画像と合成できるようにする。Live2D / M2Motion など GLES 実装をもつ素材の、単体・複数の合成結果を得る用途を想定している。
+吉里吉里Z (krkrz) 用のプラグイン (`krkrgles.dll`)。OpenGL ES (ANGLE/EGL 経由) で描画した結果を吉里吉里のレイヤへ吸い上げ、吉里吉里側でさらに別画像と合成できるようにする。Live2D など GLES 実装をもつ素材の、単体・複数の合成結果を得る用途を想定している。
 
 Windows では ANGLE を介するため、実際のバックエンドは Direct3D (既定 D3D11、`forceD3D9` 指定で D3D9)。
 
@@ -23,7 +23,7 @@ make clean
 
 - `VCPKG_ROOT` 環境変数が必要。
 - プリセットは OS から自動選択 (Windows は `x64-windows`)。明示する場合: `make build PRESET=x86-windows BUILD_TYPE=Debug`。
-- 出力は `build/<preset>/`。
+- 出力は `build/<preset>/` (生成物: `krkrgles.dll`)。
 
 ### 依存 (本リポジトリにはベンダリングされていない兄弟ディレクトリ)
 
@@ -70,7 +70,7 @@ tex.load(layer);        // レイヤ内容を取り込む
 
 ## ポストエフェクト
 
-`beginEffect()` 〜 `endEffect(commands)` で囲んだ描画を中間フレームバッファ (透明クリア済み) に捕捉し、`commands` (加工コマンドの配列) を順に適用してから、現在の `blendMode` で直前の描画先へ合成する。`capture()` のコールバック内で、モジュール描画ごとに個別のエフェクトを掛けられる (ネスト可)。Live2D / M2Motion などの自前 GL 描画も捕捉対象。
+`beginEffect()` 〜 `endEffect(commands)` で囲んだ描画を中間フレームバッファ (透明クリア済み) に捕捉し、`commands` (加工コマンドの配列) を順に適用してから、現在の `blendMode` で直前の描画先へ合成する。`capture()` のコールバック内で、モジュール描画ごとに個別のエフェクトを掛けられる (ネスト可)。Live2D などの自前 GL 描画も捕捉対象。
 
 ```tjs
 adaptor.capture(dest, function(w, h, p) {
@@ -159,3 +159,11 @@ adaptor.capture(dest, function(w, h, p) {
 - `src/GLEffect.{h,cpp}` — ポストエフェクト機構
 - `src/GLES.cpp` — `GLESAdaptor` / `GLESTexture` 本体
 - `CLAUDE.md` — 開発者/エージェント向けの内部メモ
+
+## ライセンス
+
+本プラグイン (krkrgles) のライセンスは **吉里吉里Z 本体に準じます**。
+
+- 吉里吉里Z / tp_stub / ncbind: 各配布元のライセンスに従います。
+- GLAD (EGL + GLES2 ローダ) 等の依存: 各ライセンスに従います。
+- ランタイムで利用する ANGLE (`libEGL` / `libGLESv2`): ANGLE のライセンスに従います。
