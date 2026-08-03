@@ -205,7 +205,9 @@ HWND GLESAdaptor::getHwnd()
   if (mWindow) {
     tTJSVariant val;
     mWindow->PropGet(0, TJS_W("HWND"), NULL, &val, objthis);
-    hwnd = reinterpret_cast<HWND>((tjs_int)(val));
+    // HWND はポインタ。x64 では 64bit なので tjs_int(32bit) では切り詰められる。
+    // 一旦フル幅整数で受けてからポインタ幅の intptr_t 経由でキャストする。
+    hwnd = reinterpret_cast<HWND>((tjs_intptr_t)(tTVInteger)(val));
   }
   return hwnd;
 }
