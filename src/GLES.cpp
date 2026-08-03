@@ -189,8 +189,8 @@ tjs_error GLESAdaptor::factory(GLESAdaptor **result, tjs_int numparams, tTJSVari
 			return TJS_E_BADPARAMCOUNT;
 		}
 		iTJSDispatch2 *window = params[0]->AsObjectNoAddRef();
-		if (window->IsInstanceOf(0, NULL, NULL, L"Window", window) != TJS_S_TRUE) {
-			TVPThrowExceptionMessage(L"InvalidObject");
+		if (window->IsInstanceOf(0, NULL, NULL, TJS_W("Window"), window) != TJS_S_TRUE) {
+			TVPThrowExceptionMessage(TJS_W("InvalidObject"));
 		}
 
 		bool forceD3D9 = numparams >= 2 ? params[1]->AsInteger() != 0 : false;
@@ -213,31 +213,11 @@ HWND GLESAdaptor::getHwnd()
 bool GLESAdaptor::egl_inited = false;
 bool GLESAdaptor::gles_inited = false;
 
-// DLL�̃p�X�ʒu�ݒ�p
-class DllPathSetter {
-public:
-  DllPathSetter() {
-    wchar_t buf[MAX_PATH+1];
-    ::GetDllDirectoryW(MAX_PATH, buf);
-    orig_path = buf;
-
-    tTJSVariant var;
-  #ifdef TJS_64BIT_OS
-    TVPExecuteExpression(TJS_W("Storages.getLocalName(System.exePath+\"plugin64\")"), &var);
-  #else
-    TVPExecuteExpression(TJS_W("Storages.getLocalName(System.exePath+\"plugin\")"), &var);
-  #endif
-    ttstr plugin_path = var;
-    if (plugin_path != TJS_W("")) {
-      ::SetDllDirectory( plugin_path.c_str() );
-    }
-  }
-  ~DllPathSetter() {
-    ::SetDllDirectoryW(orig_path.c_str());
-  }
-private:
-  std::wstring orig_path;
-};
+// ANGLE の libEGL / libGLESv2 は plugin(64) フォルダに置かれるが、その DLL 検索
+// パスは吉里吉里本体がプラグインロード時に設定済み (WINVER: SetDefaultDllDirectories
+// + AddDllDirectory(PluginPath) / SDL: SetDllDirectory(PluginPath))。glad の
+// LoadLibraryA("libEGL.dll") が既定検索でそれを拾うため、プラグイン側での
+// SetDllDirectory 設定 (旧 DllPathSetter) は不要。
 
 #define EGL_PLATFORM_ANGLE_ANGLE          0x3202
 #define EGL_PLATFORM_ANGLE_TYPE_ANGLE     0x3203
@@ -258,9 +238,8 @@ void GLESAdaptor::InitContext()
     mDeviceContext = GetDC(mHWND);
 
     if (!egl_inited) {
-      // initial opengl 
+      // initial opengl
       {
-        //DllPathSetter dllpath;
         int egl_version = gladLoaderLoadEGL(nullptr);
         if (!egl_version) {
             TVPThrowExceptionMessage(TJS_W("Unable to load EGL."));
@@ -390,7 +369,6 @@ void GLESAdaptor::InitContext()
     eglBindAPI(EGL_OPENGL_ES_API);
 
     if (!gles_inited) {
-      //DllPathSetter dllpath;
       // glad �� GLES ��������(egl�o�R�ŏ��������)
       int gles_version = gladLoadGLES2(gladload);
       if (!gles_version) {
@@ -474,8 +452,8 @@ void GLESAdaptor::free()
 
 void GLESAdaptor::capture(tTJSVariant layer, tTJSVariant callback, tTJSVariant param, tjs_uint32 color) {
 
-	if (layer.AsObjectNoAddRef()->IsInstanceOf(0, 0, 0, L"Layer", NULL) != TJS_S_TRUE) {
-		TVPThrowExceptionMessage(L"not layer");
+	if (layer.AsObjectNoAddRef()->IsInstanceOf(0, 0, 0, TJS_W("Layer"), NULL) != TJS_S_TRUE) {
+		TVPThrowExceptionMessage(TJS_W("not layer"));
 	}
 
   alloc();
@@ -649,7 +627,7 @@ GLTexture *GLESAdaptor::resolveTexture(tTJSVariant &layer, int &width, int &heig
   height = 0;
   alloc = false;
 
-  if (layer.AsObjectNoAddRef()->IsInstanceOf(0, 0, 0, L"Layer", NULL) == TJS_S_TRUE) {
+  if (layer.AsObjectNoAddRef()->IsInstanceOf(0, 0, 0, TJS_W("Layer"), NULL) == TJS_S_TRUE) {
     // ���C���̓��e��`��
     ncbPropAccessor p(layer.AsObjectNoAddRef());
     char *src      = (char*)p.getIntPtrValue(TJS_W("mainImageBuffer"));
@@ -677,7 +655,7 @@ GLTexture *GLESAdaptor::resolveTexture(tTJSVariant &layer, int &width, int &heig
       width   = lay->width();
       height  = lay->height();
     } else {
-	  	TVPThrowExceptionMessage(L"not layer");
+	  	TVPThrowExceptionMessage(TJS_W("not layer"));
 	  }
   }
   return texture;
@@ -966,8 +944,8 @@ GLESTexture::~GLESTexture()
 
 void GLESTexture::load(tTJSVariant layer) 
 {
-  if (layer.AsObjectNoAddRef()->IsInstanceOf(0, 0, 0, L"Layer", NULL) == TJS_S_FALSE) {
-    TVPThrowExceptionMessage(L"not layer");
+  if (layer.AsObjectNoAddRef()->IsInstanceOf(0, 0, 0, TJS_W("Layer"), NULL) == TJS_S_FALSE) {
+    TVPThrowExceptionMessage(TJS_W("not layer"));
   }
 
   // ���C���̓��e��`��
