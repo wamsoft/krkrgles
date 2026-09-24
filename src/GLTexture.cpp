@@ -240,7 +240,8 @@ GLTextureDrawer::DrawTexture(GLTexture *tex, int scr_w, int scr_h, float positio
 		glUniform1i(_unif_texture, 0);
         glUniform1f(_unif_opacity, opacity/255.0f);
 
-		// テクスチャをバインド
+		// テクスチャをバインド (外部モジュールがアクティブユニットを変えていても良いように明示)
+		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, tex->id());
 		// パラメータ設定
         glVertexAttribPointer(_attr_position, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*) position);

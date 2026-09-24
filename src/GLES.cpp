@@ -669,6 +669,12 @@ void GLESAdaptor::drawLayer(tTJSVariant layer, float a, float b, float c, float 
     return;
   }
 
+  // 直前に Emote/Live2D 等のモジュールが自前で描画していると、そのブレンド設定が
+  // 残ったままここへ来る (E-mote は glBlendFuncSeparate(ONE, ZERO, ZERO, ONE) を残す)。
+  // その状態で描くと RGB は書けても α が書かれず、マスク合成や不透明度合成の
+  // 段階で消えてしまうため、描画前に必ず自分のブレンドモードを当て直す。
+  ApplyBlendMode();
+
   GLTexture *texture = nullptr;
   int width = 0;
   int height = 0;
